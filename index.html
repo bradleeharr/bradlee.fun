@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Endless Swirl Shader</title>
+<style>
+    html, body {
+        margin:0; 
+        padding:0; 
+        overflow:hidden; 
+        height:100%; 
+        width:100%;
+    }
+    #glcanvas {
+        width:100vw; 
+        height:100vh; 
+        display:block;
+        cursor: grab;
+    }
+    #glcanvas:active {
+        cursor: grabbing;
+    }
+</style>
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+<script>
+(function() {
+    const canvas = document.getElementById('glcanvas');
+    const gl = canvas.getContext('webgl');
+
+    if(!gl) {
+        alert("WebGL not supported");
+        return;
+    }
+
+    // Resize canvas to full window size
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0,0,canvas.width, canvas.height);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Vertex Shader
+    const vertexShaderSource = `
+    attribute vec2 a_position;
+    varying vec2 v_texCoord;
+    void main() {
+        v_texCoord = (a_position * 0.5) + 0.5;
+        gl_Position = vec4(a_position, 0.0, 1.0);
+    }
+    `;
+
+    // Fragment Shader
+    const fragmentShaderSource = `
+    precision highp float;
+
+    uniform float u_time;
+    uniform float u_spin_time;
+    uniform vec4 u_colour_1;
+    uniform vec4 u_colour_2;
+    uniform vec4 u_colour_3;
+    uniform float u_contrast;
+    uniform float u_spin_amount;
+    uniform vec2 u_resolution;
+    uniform sampler2D u_image;
+    uniform vec2 u_offset;
+
+    varying vec2 v_texCoord;
+
+    #define PIXEL_SIZE_FAC 500.0
+    #define SPIN_EASE 0.8
+
+    void main() {
+        vec2 screen_coords = gl_FragCoord.xy + u_offset;
+
+        float pixel_size = length(u_resolution)/PIXEL_SIZE_FAC;
+        vec2 uv = (floor(screen_coords*(1.0/pixel_size))*pixel_size - 0.5*u_resolution)/length(u_resolution) - vec2(0.08, 0.0);
+        float uv_len = length(uv);
+
+        float speed = (u_spin_time*SPIN_EASE*0.2) + 100.0;
+        float new_pixel_angle = (atan(uv.y, uv.x)) 
+            + speed 
+            - SPIN_EASE*15.0*(u_spin_amount*uv_len + (1.0 - u_spin_amount));
+        vec2 mid = (u_resolution/length(u_resolution))/2.0;
+        uv = (vec2((uv_len * cos(new_pixel_angle) + mid.x), (uv_len * sin(new_pixel_angle) + mid.y)) - mid);
+
+        // Increase swirl complexity
+        uv *= 35.0;
+        speed = u_time*(3.0);
+        vec2 uv2 = vec2(uv.x+uv.y);
+
+        for(int i=0; i < 7; i++) {
+            uv2 += sin(max(uv.x, uv.y)) + uv;
+            uv  += 0.5*vec2(cos(5.1123314 + 0.5*uv2.y + speed*0.2), sin(uv2.x - 0.13*speed));
+            uv  -= 1.0*cos(uv.x + uv.y) - 1.0*sin(uv.x*0.9 - uv.y);
+        }
+
+        float contrast_mod = (0.35*u_contrast + 0.6*u_spin_amount + 1.5);
+        float paint_res = min(2.0, max(0.0,length(uv)*0.05*contrast_mod));
+        float c1p = max(0.0,1.0 - contrast_mod*abs(1.0 - paint_res));
+        float c2p = max(0.0,1.0 - contrast_mod*abs(paint_res));
+        float c3p = 1.0 - min(1.0, c1p + c2p);
+
+        vec4 ret_col = (0.3/u_contrast)*u_colour_1 +
+                       (1.0 - 0.3/u_contrast)*(u_colour_1*c1p + u_colour_2*c2p + vec4(c3p*u_colour_3.rgb, c3p*u_colour_1.a));
+
+        // Incorporate the image:
+        // Use uv as a distortion factor on v_texCoord
+        // fract() to tile the image endlessly
+        vec2 imageUV = fract(v_texCoord + uv * 0.02 + u_offset/u_resolution);
+        vec4 baseImage = texture2D(u_image, imageUV);
+
+        // Blend the image with the swirl
+        // Adjust ratio as desired
+        ret_col = mix(baseImage, ret_col, 0.7);
+
+        gl_FragColor = ret_col;
+    }
+    `;
+
+    function createShader(gl, type, source){
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+            console.error(gl.getShaderInfoLog(shader));
+            gl.deleteShader(shader);
+            return null;
+        }
+        return shader;
+    }
+
+    const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+    const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if(!gl.getProgramParameter(program, gl.LINK_STATUS)){
+        console.error(gl.getProgramInfoLog(program));
+    }
+
+    const a_position = gl.getAttribLocation(program, 'a_position');
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    // Full screen quad
+    const vertices = new Float32Array([
+        -1, -1,
+         1, -1,
+        -1,  1,
+        -1,  1,
+         1, -1,
+         1,  1
+    ]);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    gl.useProgram(program);
+
+    // Uniform locations
+    const u_time_loc = gl.getUniformLocation(program, 'u_time');
+    const u_spin_time_loc = gl.getUniformLocation(program, 'u_spin_time');
+    const u_colour_1_loc = gl.getUniformLocation(program, 'u_colour_1');
+    const u_colour_2_loc = gl.getUniformLocation(program, 'u_colour_2');
+    const u_colour_3_loc = gl.getUniformLocation(program, 'u_colour_3');
+    const u_contrast_loc = gl.getUniformLocation(program, 'u_contrast');
+    const u_spin_amount_loc = gl.getUniformLocation(program, 'u_spin_amount');
+    const u_resolution_loc = gl.getUniformLocation(program, 'u_resolution');
+    const u_offset_loc = gl.getUniformLocation(program, 'u_offset');
+
+    // Set some initial uniform values for a different swirl
+    gl.uniform1f(u_time_loc, 0.0);
+    gl.uniform1f(u_spin_time_loc, 0.0);
+    gl.uniform4f(u_colour_1_loc, 0.4, 0.0, 0.4, 1.0); 
+    gl.uniform4f(u_colour_2_loc, 0.2, 0.3, 0.4, 1.0); 
+    gl.uniform4f(u_colour_3_loc, 0.1, 0.2, 0.1, 1.0); 
+    gl.uniform1f(u_contrast_loc, 1.5);
+    gl.uniform1f(u_spin_amount_loc, 0.8);
+    gl.uniform2f(u_resolution_loc, canvas.width, canvas.height);
+    gl.uniform2f(u_offset_loc, 0.0, 0.0);
+
+    let textureLoaded = false;
+    const image = new Image();
+    image.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Book_of_the_Fixed_Stars_Auv0333_Orion.jpg/800px-Book_of_the_Fixed_Stars_Auv0333_Orion.jpg';
+    image.crossOrigin = '';
+    image.onload = () => {
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        textureLoaded = true;
+    };
+
+    gl.enableVertexAttribArray(a_position);
+    gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
+
+    // Add mouse dragging to offset the swirl pattern
+    let isDragging = false;
+    let lastX = 0, lastY = 0;
+    let offset = {x: 0, y: 0};
+
+    canvas.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if(isDragging) {
+            let dx = e.clientX - lastX;
+            let dy = e.clientY - lastY;
+            offset.x -= dx;
+            offset.y += dy;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            gl.uniform2f(u_offset_loc, offset.x, offset.y);
+        }
+    });
+
+    let startTime = Date.now();
+    function render() {
+        let currentTime = (Date.now() - startTime)*0.001;
+        gl.uniform1f(u_time_loc, currentTime);
+        gl.uniform1f(u_spin_time_loc, currentTime * 0.3);
+        gl.uniform2f(u_resolution_loc, canvas.width, canvas.height);
+
+        gl.clearColor(0.2, 0.2, 0.1, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        if (textureLoaded) {
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+        }
+
+        requestAnimationFrame(render);
+    }
+
+    render();
+})();
+</script>
+</body>
+</html>
