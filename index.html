@@ -5,66 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Coming Soon</title>
   <style>
-    html, body {
-      margin: 0; 
-      padding: 0; 
-      overflow: hidden; 
-      height: 100%; 
-      width: 100%;
-    }
-    #glcanvas {
-      width: 100vw; 
-      height: 100vh; 
-      display: block;
-      cursor: grab;
-    }
-    #glcanvas:active {
-      cursor: grabbing;
-    }
-
-    /* The link icon container */
-    .icon-link {
-      position: absolute;
-      top: 20px;      /* adjust as desired */
-      right: 20px;    /* adjust as desired */
-      z-index: 9999;  /* very high so it's always above the canvas */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      /* Example background styling */
-      width: 60px;
-      height: 60px;
-      background-color: rgba(0,0,0,0.6);
-      border-radius: 50%;
-
-      /* Make sure text/icon is visible over the background */
-      color: #fff;
-      text-decoration: none; /* remove underline */
-      font-size: 24px;
-      font-weight: bold;
-    }
-
-    /* Example styling for an icon <img> inside the link if you prefer an image */
-    .icon-link img {
-      width: 30px; 
-      height: 30px;
-    }
+    html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; width: 100%; }
+    #glcanvas { width: 100vw; height: 100vh; display: block; cursor: grab; }
+    #glcanvas:active { cursor: grabbing; }
+    .icon-link { position: absolute; top: 20px; right: 20px; z-index: 9999;  display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; background-color: rgba(0,0,0,0.6); border-radius: 50%; color: #fff; text-decoration: none;  font-size: 24px; font-weight: bold; }
+    .icon-link img { width: 30px; height: 30px; }
   </style>
 </head>
 <body>
-  <!-- Our WebGL canvas -->
   <canvas id="glcanvas"></canvas>
-
-
-  <a class="icon-link" href="https://bradleeharr.github.io/BinaryGame/" target="_blank" rel="noopener">
-    <!-- Could be text or an icon <img> -->
-    Binary Game
-  </a>
-  <a class="icon-link" href="https://bradleeharr.github.io/BaseAnything/" target="_blank" rel="noopener">
-    <!-- Could be text or an icon <img> -->
-    Base Converter
-  </a>
+  <a class="icon-link" href="https://bradleeharr.github.io/BinaryGame/" target="_blank" rel="noopener"> Binary Game </a>
+  <a class="icon-link" href="https://bradleeharr.github.io/BaseAnything/" target="_blank" rel="noopener"> Base Converter </a>
 
   <script>
     (function() {
